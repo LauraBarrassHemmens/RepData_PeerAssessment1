@@ -1,0 +1,279 @@
+---
+title: "Reproducible research <br> Week 1 project </br>"
+author: "Laura Barrass Hemmens"
+date: "25 October 2019"
+output: html_document
+css: styles_2.css
+---
+
+## Assignment criteria for R markdown document
+- Code for reading in the dataset and/or processing the data
+- Histogram of the total number of steps taken each day
+- Mean and median number of steps taken each day
+- Time series plot of the average number of steps taken
+- The 5-minute interval that, on average, contains the maximum number of steps
+- Code to describe and show a strategy for imputing missing data
+- Histogram of the total number of steps taken each day after missing values are imputed
+- Panel plot comparing the average number of steps taken per 5-minute interval across weekdays and weekends
+- All of the R code needed to reproduce the results (numbers, plots, etc.) in the report
+
+### Data processing
+The data is split up according to date, then for each date the total number of steps is calculated.
+
+```{r, echo = TRUE}
+df = read.csv("activity.csv")
+date_list <- split(df, f = df$date)
+
+steps <- lapply(date_list,"[", ,1)
+
+steps <- as.data.frame(steps)
+
+steps <- rbind(steps, colSums(steps))
+
+steps_total <- as.data.frame( steps[289,], drop=false)
+
+test <- t(steps_total)
+test<- as.data.frame(test)
+
+values = seq(from = as.Date("2012-10-01"), to = as.Date("2012-11-30"), by = 'day')
+
+total_steps <- as.data.frame(values)
+row.names(test) <- 1:61
+total_steps$int <- (1:61)
+
+test$int <- (1:61)
+
+total_steps <- cbind(total_steps, test)
+
+total_steps <- subset(total_steps, select = c(1,3))
+
+colnames(total_steps) <- c("date", "steps")
+
+```
+
+### Histogram of total steps per day
+
+Summary of data:
+
+``` {r, echo = TRUE, eval = TRUE, comment = "", warning = FALSE, message = FALSE}
+library(plotly)
+
+summary(total_steps)
+ plot1 <- plot_ly(x = total_steps$steps, type = "histogram") %>% 
+  layout(title = "Histogram showing cumulative frequency of steps walked",
+         xaxis = list(title = "Number of steps",
+                      zeroline = FALSE),
+         yaxis = list(title = "Frequency",
+                      zeroline = FALSE))
+ plot1
+ 
+```
+
+
+### The mean and median steps per day
+
+```{r, eval = TRUE, echo=TRUE, comment = "", message = FALSE}
+
+mean(total_steps$steps, na.rm = TRUE)
+
+median(total_steps$steps, na.rm = TRUE)
+
+```
+
+
+### Time series plot to show average daily activity
+
+```{r, eval=TRUE, echo=TRUE, comment = "", warning = FALSE}
+interval_list <- split(df, f = df$interval)
+
+intervals <- lapply(interval_list,"[", ,1)
+
+intervals <- as.data.frame(intervals)
+
+
+meansteps <- colMeans(intervals, na.rm = TRUE)
+meansteps <- as.data.frame(meansteps)
+meansteps$interval <- sub("X", "", row.names(meansteps))
+meansteps$interval <- as.numeric(meansteps$interval)
+
+plot2 <- plot_ly(x = meansteps$interval, y = meansteps$meansteps, type = "scatter", mode = "markers+lines") %>%
+  layout(title = "Average steps taken over time",
+         xaxis = list(title = "Interval"),
+         yaxis = list(title = "Steps"))
+plot2
+
+```
+
+### The 5 minute interval that, on average, contains the maximum number of steps
+
+```{r, eval = TRUE, echo = TRUE, message = FALSE, comment=""}
+
+
+max_interval_steps <- (x <- meansteps[meansteps$meansteps == max(meansteps$meansteps), ])
+max_interval_steps
+
+
+```
+
+### Imputing missing values
+
+The summary table of the missing data is shown below
+``` {r, eval = TRUE, echo = TRUE, comment = ""}
+
+df2 <- df[!complete.cases(df), ]
+summary(df2)
+
+
+```
+
+**The number of NAs is 2304**
+
+Replacing the NAs with mean or median values will skew the data, therefore upon inspection of the original dataframe I have decided to use the MICE package to impute values for each interval instead. 
+
+``` {r loadlib, eval = TRUE, warning = FALSE, comment = "", echo = TRUE, results = "hide", message = FALSE}
+library(mice)
+md.pattern(df)
+
+imputed_data <- mice(data = df)
+imputed_data$imp$steps
+complete_data <- complete(imputed_data)
+
+```
+
+```{r, eval = TRUE, warning = FALSE, comment = FALSE, echo = TRUE}
+
+date_list2 <- split(complete_data, f = complete_data$date)
+
+steps2 <- lapply(date_list2,"[", ,1)
+
+steps2 <- as.data.frame(steps2)
+
+steps2 <- rbind(steps2, colSums(steps2))
+
+steps_total2 <- as.data.frame( steps2[289,], drop=false)
+
+steps_total2 <- t(steps_total2)
+steps_total2<- as.data.frame(steps_total2)
+
+values = seq(from = as.Date("2012-10-01"), to = as.Date("2012-11-30"), by = 'day')
+
+values <- as.data.frame(values)
+row.names(steps_total2) <- 1:61
+values$int <- (1:61)
+
+steps_total2$int <- (1:61)
+
+steps_total2 <- cbind(steps_total2, values)
+
+steps_total2 <- subset(steps_total2, select = c(1,3))
+
+colnames(steps_total2) <- c("steps", "date")
+```
+
+
+### Histogram of imputed data set
+
+```{r, echo=TRUE}
+plot3 <- plot_ly(x = steps_total2$steps, type = "histogram") %>% 
+  layout(title = "Histogram showing cumulative frequency of steps walked using imputed data",
+         xaxis = list(title = "Number of steps",
+                      zeroline = FALSE),
+         yaxis = list(title = "Frequency",
+                      zeroline = FALSE))
+plot3
+
+```
+
+
+
+### Comparing histogram data
+
+-The mean of the imputed data is:
+```{r, warning = FALSE, echo = TRUE, comment="", warning = FALSE}
+
+mean(steps_total2$steps)
+
+```
+
+-The median of the imputed data is:
+
+```{r, warning = FALSE, echo = TRUE, comment=""}
+
+median(steps_total2$steps)
+
+```
+
+-There is a slight increase in the mean and median of the imputed data set compared to the original data set, this is due to the increase in daily total steps (where there were no recorded steps at all)
+
+```{r, echo = TRUE, warning = FALSE, comment=""}
+
+total_steps$imp_steps <- steps_total2$steps
+
+summary(total_steps)
+
+
+
+```
+
+### Are there differences in activity patterns between weekdays and weekends?
+
+Create two datasets - both containing intervals data and mean steps per interval, but one for weekdays only and one for weekends only
+
+```{r, warning = FALSE, comment="", echo = TRUE}
+
+complete_data$date <- as.Date(complete_data$date, format = "%m/%d/%Y")
+
+complete_data$day <- weekdays(complete_data$date)
+complete_data$daytype <- ifelse((complete_data$day == 'Saturday' | complete_data$day == 'Sunday'), 'weekend','weekday')
+
+ 
+day_type_list <- split(complete_data, f = complete_data$daytype)
+
+list2env(day_type_list, envir=.GlobalEnv)
+
+#weekday dataframe
+
+weekday_split <- split(weekday, f = weekday$interval)
+
+weekday_split <- lapply(weekday_split,"[", ,1)
+
+weekday_split <- as.data.frame(weekday_split)
+
+
+weekday_steps <- colMeans(weekday_split, na.rm = TRUE)
+weekday_steps <- as.data.frame(weekday_steps)
+weekday_steps$interval <- sub("X", "", row.names(weekday_steps))
+weekday_steps$interval <- as.numeric(weekday_steps$interval)
+
+#weekend dataframe
+
+weekend_split <- split(weekend, f = weekend$interval)
+
+weekend_split <- lapply(weekend_split,"[", ,1)
+
+weekend_split <- as.data.frame(weekend_split)
+
+
+weekend_steps <- colMeans(weekend_split, na.rm = TRUE)
+weekend_steps <- as.data.frame(weekend_steps)
+weekend_steps$interval <- sub("X", "", row.names(weekend_steps))
+weekend_steps$interval <- as.numeric(weekend_steps$interval)
+
+# create plots of both the weekday and weekend data
+
+
+p_wkday <- plot_ly(weekday_steps, x = weekday_steps$interval, y = weekday_steps$weekday_steps) %>%
+  add_lines(name = "weekday")
+p_wkend <- plot_ly(weekend_steps, x = weekend_steps$interval, y = weekend_steps$weekend_steps) %>%
+  add_lines(name = "weekend")
+
+subplot(p_wkday, p_wkend, nrows = 2, margin = 0.05, shareX =TRUE, shareY = TRUE, titleX = TRUE, titleY = TRUE) %>%
+  layout(title = "Comparing activity patterns between weekdays and weekends",
+         xaxis = list(title = "Interval"),
+         yaxis = list(title = "Steps"))
+
+
+
+```
+
+From the panel plot it is easy to compare both data sets which show the average number of steps per interval for the weekdays and weekend. Activity starts much later during the weekend - people tend to have later starts to their days. Peak activity remains around the same time on both plots, but in general activity levels are greater on weekdays than weekends.
